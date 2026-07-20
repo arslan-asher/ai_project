@@ -27,7 +27,6 @@ def analyze_diff(diff_text: str) -> PRReviewSummary:
 
     client = genai.Client(api_key=api_key)
 
-    # Truncate extremely large diffs to avoid context overflow
     max_chars = 100_000
     if len(diff_text) > max_chars:
         logger.warning("Diff size exceeds limit. Truncating for AI review.")
@@ -37,7 +36,7 @@ def analyze_diff(diff_text: str) -> PRReviewSummary:
 
     logger.info("Sending diff to Gemini for analysis...")
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
+        model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
