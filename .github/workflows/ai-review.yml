@@ -1,8 +1,10 @@
-name: AI PR Security Reviewer
+name: AI PR & Commit Security Reviewer
 
 on:
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches: [ main, master ]
 
 jobs:
   ai-review:
@@ -34,4 +36,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
         run: python main.py

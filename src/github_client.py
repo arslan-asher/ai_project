@@ -5,68 +5,64 @@ from src.schemas import PRReviewSummary
 
 logger = logging.getLogger(__name__)
 
-class GitHubPRHandler:
-    def __init__(self, repo_name: str, pr_number: int):
-        token = os.getenv("GITHUB_TOKEN")
-        if not token:
-            raise ValueError("GITHUB_TOKEN environment variable is not set.")
-        
-        self.gh = Github(token)
-        self.repo = self.gh.get_repo(repo_name)
-        self.pr = self.repo.get_pull(pr_number)
+def get_github_client() -> Github:
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError("GITHUB_TOKEN environment variable is missing.")
+    return Github(token)
 
-    def get_pull_request_diff(self) -> str:
-        """Retrieves raw diff for the specified pull request."""
-        files = self.pr.get_files()
-        diff_chunks = []
-        
-        # Ignored extensions/files to save tokens
-        ignored_exts = ('.lock', '.json', '.min.js', '.min.css', '.png', '.jpg', '.svg')
-        
-        for file in files:
-            if file.filename.endswith(ignored_exts):
-                continue
+def get_pull_request_diff(repo_name: str, pr_number: int) -> str:
+    """Fetches the unified git diff for a pull request."""
+    g = get_github_client()
+    repo = g.get_repo(repo_name)
+    pr = repo.get_pull(pr_number)
+    
+    diff_chunks = []
+    for file in pr.get_files():
+        if file.patch:
+            diff_chunks.append(f"--- a/{file.filename}\n+++ b/{file.filename}\n{file.patch}")
             
-            diff_chunks.append(f"File: {file.filename}\nStatus: {file.status}\nPatch:\n{file.patch}\n")
-        
-        return "\n---\n".join(diff_chunks)
+    return "\n\n".join(diff_chunks)
 
-    def post_review(self, review: PRReviewSummary):
-        """Posts top-level summary comment and inline comments to the PR."""
-        body = f"## 🤖 AI PR Security & Code Review\n\n"
-        body += f"**Overall Status:** `{review.overall_sentiment}`\n\n"
-        body += f"### Summary\n{review.summary}\n\n"
+def get_commit_diff(repo_name: str, commit_sha: str) -> str:
+    """Fetches the git diff for a specific commit SHA."""
+    g = get_github_client()
+    repo = g.get_repo(repo_name)
+    commit = repo.get_commit(commit_sha)
+    
+    diff_chunks = []
+    for file in commit.files:
+        if file.patch:
+            diff_chunks.append(f"--- a/{file.filename}\n+++ b/{file.filename}\n{file.patch}")
+            
+    return "\n\n".join(diff_chunks)
 
-        if not review.findings:
-            body += "✅ **No security issues or critical bugs detected.**"
-            self.pr.create_issue_comment(body)
-            logger.info("Posted clean review comment to PR.")
-            return
+def post_review_comments(repo_name: str, pr_number: int, review_summary: PRReviewSummary):
+    """Posts general summary comment and inline review comments on the PR."""
+    g = get_github_client()
+    repo = g.get_repo(repo_name)
+    pr = repo.get_pull(pr_number)
+    commit = repo.get_commits().reversed[0]
 
-        body += f"### Key Findings ({len(review.findings)})\n"
-        body += "Detailed inline comments have been added directly to the code diff below."
-        
-        # Post top-level PR comment
-        self.pr.create_issue_comment(body)
+    # Post general PR comment summary
+    body = f"## 🤖 AI PR Security Review\n\n"
+    body += f"**Overall Sentiment:** `{review_summary.overall_sentiment}`\n\n"
+    body += f"### Summary\n{review_summary.summary}\n"
+    
+    pr.create_issue_comment(body)
 
-        # Post inline diff comments
-        commit = self.pr.get_commits().reversed[0]  # Latest commit
-        
-        for finding in review.findings:
-            comment_body = (
-                f"**[{finding.severity}] {finding.category}**\n"
-                f"{finding.comment}\n"
-            )
+    # Post inline comments on specific lines
+    for finding in review_summary.findings:
+        try:
+            comment_text = f"**[{finding.severity}] {finding.category}**\n\n{finding.comment}"
             if finding.suggested_fix:
-                comment_body += f"\n```suggestion\n{finding.suggested_fix}\n```"
+                comment_text += f"\n\n**Suggested Fix:**\n```python\n{finding.suggested_fix}\n```"
 
-            try:
-                self.pr.create_review_comment(
-                    body=comment_body,
-                    commit=commit,
-                    path=finding.file_path,
-                    line=finding.line_number
-                )
-            except GithubException as e:
-                # If inline line matching fails, log warning and continue
-                logger.warning(f"Could not post inline comment on {finding.file_path}:{finding.line_number} - {e}")
+            pr.create_review_comment(
+                body=comment_text,
+                commit=commit,
+                path=finding.file_path,
+                line=finding.line_number
+            )
+        except GithubException as e:
+            logger.warning(f"Could not post inline comment on {finding.file_path}:{finding.line_number}: {e}")
