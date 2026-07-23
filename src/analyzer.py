@@ -7,7 +7,7 @@ from src.schemas import PRReviewSummary
 logger = logging.getLogger(__name__)
 
 SYSTEM_INSTRUCTION = """
-You are a Staff Security & Software Engineer conducting an automated code review on a GitHub Pull Request.
+You are a Staff Security & Software Engineer conducting an automated code review on a GitHub Pull Request or Commit.
 Analyze the provided Git Diff and look for:
 1. Security Vulnerabilities (e.g., exposed API keys, credentials, SQL injection, unsafe dependencies, unvalidated inputs).
 2. Logic bugs, race conditions, or unhandled exceptions.
