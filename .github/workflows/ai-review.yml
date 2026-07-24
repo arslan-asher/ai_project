@@ -1,57 +1,31 @@
-name: AI Security Reviewer Engine
+name: AI Security Review
 
 on:
-  pull_request:
-    types: [opened, synchronize]
   push:
-    branches: [ main, master, test-bot-trigger ]
-
-  # Allows external repositories to invoke this workflow remotely
-  workflow_call:
-    secrets:
-      GEMINI_API_KEY:
-        required: true
+    branches: ["**"]  # Runs on commits to any branch
+  pull_request:
+    branches: ["**"]  # Runs on PRs to any branch
 
 jobs:
-  ai-review:
+  security-check:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
 
     steps:
-      # 1. Checkout the project being scanned (the caller repository)
-      - name: Checkout Target Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
-      # 2. Checkout the review scripts from ai_project into a subfolder
-      - name: Checkout Review Engine
-        uses: actions/checkout@v4
-        with:
-          repository: 'arslan-asher/ai_project'
-          path: '.ai_engine'
-
-      # 3. Install requirements from the engine
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r .ai_engine/requirements.txt
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 4. Execute the analysis script
-      - name: Run Security Review
+      - name: Run AI Security Analyzer
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PR_NUMBER: "${{ github.event.pull_request.number || '' }}"
-          REPOSITORY: ${{ github.repository }}
-          COMMIT_SHA: ${{ github.sha }}
-          PYTHONPATH: ".ai_engine"
-        run: python .ai_engine/main.py
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python main.py
