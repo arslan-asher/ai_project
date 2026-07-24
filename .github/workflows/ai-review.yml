@@ -1,18 +1,14 @@
 name: AI Security Reviewer Engine
 
 on:
-  # Allows this repository to run on its own commits/PRs
   pull_request:
     types: [opened, synchronize]
   push:
-    branches: [ main, master ]
+    branches: [ main, master, test-bot-trigger ]
 
-  # Enables OTHER repositories to call this workflow remotely!
   workflow_call:
     secrets:
       GEMINI_API_KEY:
-        required: true
-      GITHUB_TOKEN:
         required: true
 
 jobs:
@@ -34,17 +30,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Check out the scripts from ai_project into a temporary runner folder
-      - name: Checkout Review Engine Scripts
-        uses: actions/checkout@v4
-        with:
-          repository: 'arslan-asher/ai_project'
-          path: '.ai_reviewer_engine'
-
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r .ai_reviewer_engine/requirements.txt
+          pip install -r requirements.txt
 
       - name: Run Security Review
         env:
@@ -53,5 +42,4 @@ jobs:
           PR_NUMBER: "${{ github.event.pull_request.number || '' }}"
           REPOSITORY: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
-          PYTHONPATH: ".ai_reviewer_engine"
-        run: python .ai_reviewer_engine/main.py
+        run: python main.py
